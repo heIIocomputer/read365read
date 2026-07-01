@@ -425,19 +425,16 @@ function render(){
     return cell.cards.size;          // readers
   };
 
-  // per-class row totals (readers = unique students across whole period)
-  const rowTotalOf = m => {
-    if(metric==="readers"){
-      const s=new Set(); for(const b of bucketList){ const cell=m.get(b); if(cell) cell.cards.forEach(x=>s.add(x)); }
-      return s.size;
-    }
-    let t=0; for(const b of bucketList) t+=cellVal(m.get(b)); return t;
-  };
+  // Totals are the SUM of the visible cells so the table is internally
+  // consistent: row 합계 = sum of that row, col 합계 = sum of that column,
+  // grand = sum of all cells. (In 점수 mode a student active in N buckets
+  // contributes 1 point per bucket, i.e. N points total.)
   const rowTot = {}; let maxCell=0;
   for(const c of classList){
     const m = grid.get(c);
-    rowTot[c] = rowTotalOf(m);
-    for(const b of bucketList){ const v=cellVal(m.get(b)); if(v>maxCell) maxCell=v; }
+    let t=0;
+    for(const b of bucketList){ const v=cellVal(m.get(b)); t+=v; if(v>maxCell) maxCell=v; }
+    rowTot[c]=t;
   }
 
   // sorting
@@ -445,17 +442,11 @@ function render(){
   if(sortMode==="desc") classList.sort((a,b)=>rowTot[b]-rowTot[a] || a.localeCompare(b));
   else if(sortMode==="asc") classList.sort((a,b)=>rowTot[a]-rowTot[b] || a.localeCompare(b));
 
-  // column totals (readers de-duped per column)
+  // column totals = sum down each column
   const colTot = {};
-  for(const b of bucketList){
-    if(metric==="readers"){ const s=new Set(); for(const c of classList){ const cell=grid.get(c).get(b); if(cell) cell.cards.forEach(x=>s.add(x)); } colTot[b]=s.size; }
-    else { let t=0; for(const c of classList) t+=cellVal(grid.get(c).get(b)); colTot[b]=t; }
-  }
-  // grand total
-  let grand;
-  if(metric==="loans") grand=rows.length;
-  else if(metric==="readers") grand=new Set(rows.map(r=>r.card).filter(Boolean)).size;
-  else { grand=0; for(const c of classList){ const m=grid.get(c); for(const b of bucketList){ if((m.get(b)?.n||0)>0) grand++; } } }
+  for(const b of bucketList){ let t=0; for(const c of classList) t+=cellVal(grid.get(c).get(b)); colTot[b]=t; }
+  // grand total = sum of all cells (== sum of rowTot == sum of colTot)
+  let grand=0; for(const c of classList) grand+=rowTot[c];
 
   const showRank = (sortMode!=="name");
   let html = "<table><thead><tr><th>반</th>";
