@@ -138,6 +138,7 @@
   }
   .filehint input{margin-top:8px}
   footer{color:var(--muted); font-size:12px; padding:8px 24px 30px; text-align:center}
+  footer .copyright{margin-top:8px; font-size:11.5px; letter-spacing:.03em; color:#9aa3b2; font-style:italic}
 </style>
 </head>
 <body>
@@ -261,7 +262,10 @@
   </div>
 </div>
 
-<footer>학교 도서관 대출 이력 · 대출일자 기준 집계 · 브라우저에서만 처리(서버 전송 없음)</footer>
+<footer>
+  학교 도서관 대출 이력 · 대출일자 기준 집계 · 브라우저에서만 처리(서버 전송 없음)
+  <div class="copyright">© Nightsky Vibe. All rights reserved. Inspired by YOU JEANS.</div>
+</footer>
 
 <script>
 "use strict";
@@ -274,43 +278,74 @@ let useHeat = true;
 let CURRENT = null;        // last rendered table state (for export + detail)
 let DATA_RANGE = null;     // {lo, hi} full date span of the data
 
-const KNOWN_GRADES = new Set(["학생","학생(도서부)","교사","수업활용"]);
-const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-// ---------- CSV parsing ----------
-// Fields are unquoted; some titles/authors contain commas, but the columns we
-// need are fixed from the left (등급/학년/반) and the date is the 2nd-to-last field.
-function splitLine(line){
-  return line.split(",");
+// ---------- CSV parsing (robust) ----------
+// Handles: reordered columns, extra/blank columns, blank rows, repeated header
+// blocks, section-title rows, quoted fields with commas, BOM, and date formats
+// with - . or / separators. Columns are located by header name, not position.
+const SYN = {
+  card:["대출증번호","대출증","회원번호","바코드","카드번호"],
+  name:["이름","성명","대출자","회원명","학생명"],
+  gtype:["등급","구분","회원구분","신분","대상"],
+  gy:["학년"],
+  cl:["반","학급","분반"],
+  title:["서명자료명","서명","자료명","도서명","제목","책제목"],
+  date:["대출일자","대출일","대출날짜","대출일시","날짜"]
+};
+const normHead = s => String(s).replace(/﻿/g,"").replace(/[\s()[\]{}·.]/g,"").trim();
+const toInt = s => { if(s==null) return null; const m=String(s).match(/-?\d+/); return m?parseInt(m[0],10):null; };
+function normDate(s){
+  if(s==null) return null;
+  const m=String(s).match(/(\d{4})\s*[-.\/년]\s*(\d{1,2})\s*[-.\/월]\s*(\d{1,2})/);
+  if(!m) return null;
+  return `${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;
 }
+// proper CSV line splitter (quotes + escaped quotes)
+function parseCSVLine(line){
+  const out=[]; let cur="", q=false;
+  for(let i=0;i<line.length;i++){
+    const ch=line[i];
+    if(q){ if(ch==='"'){ if(line[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=ch; }
+    else { if(ch==='"') q=true; else if(ch===',') { out.push(cur); cur=""; } else cur+=ch; }
+  }
+  out.push(cur);
+  return out.map(c=>c.trim());
+}
+function detectHeader(cells){
+  const norm = cells.map(normHead);
+  const find = names => { for(const nm of names){ const i=norm.indexOf(nm); if(i>=0) return i; } return -1; };
+  const gy=find(SYN.gy), cl=find(SYN.cl);
+  if(gy<0 || cl<0) return null;                 // must have 학년 & 반 columns
+  const date=find(SYN.date), name=find(SYN.name), title=find(SYN.title);
+  if(date<0 && name<0 && title<0) return null;  // otherwise not really a header
+  return {gy, cl, date, name, title, card:find(SYN.card), gtype:find(SYN.gtype)};
+}
+const at = (f,i) => (i>=0 && i<f.length) ? f[i] : "";
+function scanDate(f){ for(const c of f){ const d=normDate(c); if(d) return d; } return null; }
 
 function parseCSV(text){
   const out = [];
-  const lines = text.split(/\r?\n/);
+  const lines = text.replace(/﻿/g,"").split(/\r?\n/);
+  let map = null;
   for(const raw of lines){
-    if(!raw || !raw.includes(",")) continue;
-    const f = splitLine(raw);
-    if(f.length < 10) continue;
-    const grade = (f[4]||"").trim();       // 등급
-    if(!KNOWN_GRADES.has(grade)) continue; // skip header / 대출이력 / blank rows
-    const dateStr = (f[f.length-2]||"").trim(); // 대출일자 = 2nd to last
-    if(!DATE_RE.test(dateStr)) continue;
-    const gy = (f[5]||"").trim();          // 학년
-    const cl = (f[6]||"").trim();          // 반
-    // only class-based readers (students & library club)
-    if(grade!=="학생" && grade!=="학생(도서부)") continue;
-    if(!gy || !cl || gy==="0" || cl==="0") continue;
+    if(raw.trim()==="") continue;
+    const f = parseCSVLine(raw);
+    const hdr = detectHeader(f);
+    if(hdr){ map = hdr; continue; }             // (re)set column mapping
+    if(!map) continue;                          // data before any header → skip
+    const gy = toInt(at(f,map.gy));
+    const cl = toInt(at(f,map.cl));
+    if(gy==null || cl==null || gy<=0 || cl<=0) continue;  // not a class-reader row
+    let dateStr = normDate(at(f,map.date)) || scanDate(f);
+    if(!dateStr) continue;
     const d = new Date(dateStr+"T00:00:00");
     if(isNaN(d)) continue;
+    const gtype = at(f,map.gtype);
+    const name = at(f,map.name);
+    const card = at(f,map.card) || name || `${gy}-${cl}-${name}`;
     out.push({
-      grade:Number(gy), cls:Number(cl), isBu: grade==="학생(도서부)",
-      card:(f[2]||"").trim(),              // 대출증번호 (고유 학생 식별)
-      name:(f[3]||"").trim(),              // 이름
-      title:(f.slice(9, Math.max(10,f.length-4)).join(",")).trim(), // 서명(쉼표 포함 가능)
-      date:d, dateStr,
-      ym: dateStr.slice(0,7),
-      week: mondayOf(d),
-      sem: semesterOf(d)
+      grade:gy, cls:cl, isBu:/도서부/.test(gtype),
+      card, name, title: at(f,map.title),
+      date:d, dateStr, ym:dateStr.slice(0,7), week:mondayOf(d), sem:semesterOf(d)
     });
   }
   return out;
@@ -607,23 +642,35 @@ function trendMark(d, hasPrev, ascii){
   return ascii?"0":"=";
 }
 
+// period-specific wording + bucket display for the notice
+function noticeUnit(){
+  const weekEnd = w => { const d=new Date(w+"T00:00:00"); d.setDate(d.getDate()+6); return d.toISOString().slice(0,10); };
+  return {
+    week:  {cur:"이번 주", prev:"지난 주", cmp:"전주대비",  disp:k=>`${k} ~ ${weekEnd(k)}`},
+    month: {cur:"이번 달", prev:"지난 달", cmp:"전월대비",  disp:k=>{const[y,m]=k.split("-");return `${y}년 ${Number(m)}월`;}},
+    semester:{cur:"이번 학기", prev:"지난 학기", cmp:"전학기대비", disp:k=>k},
+    year:  {cur:"올해", prev:"작년", cmp:"전년대비", disp:k=>(DATA_RANGE?DATA_RANGE.lo.slice(0,4)+"년":k)}
+  }[period];
+}
+
 function refreshNotice(){
   if(!CURRENT || !CURRENT.rows.length){ document.getElementById("msgPreview").textContent="(표시할 데이터가 없습니다)"; return; }
   const data = CURRENT.rows;
   const useFence = document.getElementById("msgFence").checked;
   const ascii = document.getElementById("msgAscii").checked;
+  const unit = noticeUnit();
 
-  // weekly comparison: latest week vs previous week (within current filters/range)
-  const weeks = [...new Set(data.map(r=>r.week))].sort();
-  const wCur = weeks[weeks.length-1];
-  const wPrev = weeks[weeks.length-2];
-  const hasPrev = wPrev !== undefined;
+  // compare latest bucket vs previous bucket, using the SELECTED period
+  const buckets = [...new Set(data.map(r=>bucketKey(r)))].sort();
+  const bCur = buckets[buckets.length-1];
+  const bPrev = buckets[buckets.length-2];
+  const hasPrev = bPrev !== undefined;
 
   const curBy={}, prevBy={};
   for(const r of data){
-    const c = r.grade+"-"+r.cls;
-    if(r.week===wCur) (curBy[c]=curBy[c]||[]).push(r);
-    else if(r.week===wPrev) (prevBy[c]=prevBy[c]||[]).push(r);
+    const c = r.grade+"-"+r.cls; const b = bucketKey(r);
+    if(b===bCur) (curBy[c]=curBy[c]||[]).push(r);
+    else if(b===bPrev) (prevBy[c]=prevBy[c]||[]).push(r);
   }
   const classes = [...new Set([...Object.keys(curBy), ...Object.keys(prevBy)])];
   const scored = classes.map(c=>{
@@ -632,32 +679,33 @@ function refreshNotice(){
     return {g, cl, cur, prev, d:cur-prev};
   });
 
-  // group & rank per grade
+  // group & rank per grade; comparison column only shown when a previous bucket exists
   const grades = [...new Set(scored.map(s=>s.g))].sort((a,b)=>a-b);
   const trend = d => trendMark(d, hasPrev, ascii);
+  const headers = hasPrev ? ["순위","반",metricLabel(),unit.cmp] : ["순위","반",metricLabel()];
+  const aligns  = hasPrev ? ["c","l","r","r"] : ["c","l","r"];
   const blocks = [];
   for(const g of grades){
     const list = scored.filter(s=>s.g===g).sort((a,b)=> b.cur-a.cur || a.cl-b.cl);
-    const rows = list.map((s,i)=> [String(i+1), `${s.cl}반`, String(s.cur), trend(s.d)]);
-    const gCur = scoreOf(data.filter(r=>r.week===wCur && r.grade===g));
-    const gPrev = scoreOf(data.filter(r=>r.week===wPrev && r.grade===g));
-    rows.push(["", "소계", String(gCur), trend(gCur-gPrev)]);
-    const tbl = asciiTable(["순위","반",metricLabel(),"전주대비"], rows, ["c","l","r","r"]);
-    blocks.push(`■ ${g}학년\n${tbl}`);
+    const rows = list.map((s,i)=> hasPrev ? [String(i+1), `${s.cl}반`, String(s.cur), trend(s.d)]
+                                          : [String(i+1), `${s.cl}반`, String(s.cur)]);
+    const gCur = scoreOf(data.filter(r=>bucketKey(r)===bCur && r.grade===g));
+    const gPrev = scoreOf(data.filter(r=>bucketKey(r)===bPrev && r.grade===g));
+    rows.push(hasPrev ? ["", "소계", String(gCur), trend(gCur-gPrev)] : ["", "소계", String(gCur)]);
+    blocks.push(`■ ${g}학년\n${asciiTable(headers, rows, aligns)}`);
   }
   // overall total line
-  const curAll = scoreOf(data.filter(r=>r.week===wCur));
-  const prevAll = scoreOf(data.filter(r=>r.week===wPrev));
-  blocks.push(`총 합계: ${curAll}  (전주대비 ${trend(curAll-prevAll)})`);
+  const curAll = scoreOf(data.filter(r=>bucketKey(r)===bCur));
+  const prevAll = scoreOf(data.filter(r=>bucketKey(r)===bPrev));
+  blocks.push(hasPrev ? `총 합계: ${curAll}  (${unit.cmp} ${trend(curAll-prevAll)})` : `총 합계: ${curAll}`);
   let body = blocks.join("\n\n");
   if(useFence) body = "```\n"+body+"\n```";
 
   const gradeSel=document.getElementById("gradeSel");
   const gtxt = gradeSel.value ? `${gradeSel.value}학년 ` : "전체 ";
-  const weekEnd = w => { const d=new Date(w+"T00:00:00"); d.setDate(d.getDate()+6); return d.toISOString().slice(0,10); };
   const arr = ascii ? "(+증가·-감소)" : "(▲증가·▼감소)";
-  let title = `[${gtxt}반별 독서현황 · 주간 · ${metricLabel()}]\n이번 주: ${wCur} ~ ${weekEnd(wCur)}`;
-  if(hasPrev) title += `\n전주: ${wPrev} ~ ${weekEnd(wPrev)} 대비 ${arr}`;
+  let title = `[${gtxt}반별 독서현황 · ${periodName()} · ${metricLabel()}]\n${unit.cur}: ${unit.disp(bCur)}`;
+  if(hasPrev) title += `\n${unit.prev}: ${unit.disp(bPrev)} 대비 ${arr}`;
 
   const head = document.getElementById("msgHead").value.trim();
   const foot = document.getElementById("msgFoot").value.trim();
