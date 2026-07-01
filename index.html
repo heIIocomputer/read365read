@@ -167,7 +167,7 @@
     <div class="field">
       <label>집계 방식</label>
       <div class="seg" id="metricSeg">
-        <button data-m="readers" class="active" title="빌린 서로 다른 학생 1명당 1점">점수(1인 1점)</button>
+        <button data-m="readers" class="active" title="학생 1명이 하루에 1점 (같은 날 여러 권/여러 번도 1점) — 독서마라톤 방식">점수(1인 1점)</button>
         <button data-m="loans" title="총 대출 건수">대출 건수</button>
         <button data-m="active" title="반별로 최소 1명이 1회라도 빌리면 1점">반 활동(1점)</button>
       </div>
@@ -402,8 +402,8 @@ function render(){
     if(!grid.has(c)) grid.set(c, new Map());
     const m = grid.get(c);
     let cell = m.get(b);
-    if(!cell){ cell={n:0, cards:new Set()}; m.set(b,cell); }
-    cell.n++; if(r.card) cell.cards.add(r.card);
+    if(!cell){ cell={n:0, cd:new Set()}; m.set(b,cell); }
+    cell.n++; cell.cd.add(r.card+"|"+r.dateStr);   // 점수용: 학생·날짜 쌍(1인 1일 1점)
   }
 
   const bucketList = [...buckets].sort();
@@ -422,7 +422,7 @@ function render(){
     if(!cell) return 0;
     if(metric==="loans") return cell.n;
     if(metric==="active") return cell.n>0 ? 1 : 0;
-    return cell.cards.size;          // readers
+    return cell.cd.size;             // 점수: 1인 1일 1점 (학생·날짜 distinct)
   };
 
   // Totals are the SUM of the visible cells so the table is internally
@@ -565,7 +565,7 @@ function esc(s){ return (s||"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;","
 function exportCSV(){
   if(!CURRENT){ return; }
   const {classList, bucketList, grid, rowTot, colTot, grand} = CURRENT;
-  const cellVal = cell => !cell?0 : metric==="loans"?cell.n : metric==="active"?(cell.n>0?1:0) : cell.cards.size;
+  const cellVal = cell => !cell?0 : metric==="loans"?cell.n : metric==="active"?(cell.n>0?1:0) : cell.cd.size;
   const q = v => { v=String(v); return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
   const lines = [];
   const head = ["반", ...bucketList.map(bucketLabel), metric==="active"?"활동기간":"합계"];
@@ -624,7 +624,7 @@ function metricLabel(){ return {readers:"점수", loans:"대출건수", active:"
 function scoreOf(list){
   if(metric==="loans") return list.length;
   if(metric==="active") return list.length>0?1:0;
-  return new Set(list.map(r=>r.card)).size;   // readers
+  return new Set(list.map(r=>r.card+"|"+r.dateStr)).size;   // 점수: 1인 1일 1점
 }
 function trendMark(d, hasPrev, ascii){
   if(!hasPrev) return ascii?"NEW":"NEW";
