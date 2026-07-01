@@ -84,6 +84,16 @@
     min-height:36px;
   }
   .attach:hover{background:#e2ecff}
+  #attachBtn{
+    font-size:16px; font-weight:800; padding:13px 24px; border-width:2px;
+    box-shadow:0 3px 12px rgba(37,99,235,.35); letter-spacing:.01em;
+    animation:attachPulse 2.2s ease-in-out infinite;
+  }
+  #attachBtn:hover{background:#dbe7ff; transform:translateY(-1px)}
+  @keyframes attachPulse{
+    0%,100%{box-shadow:0 3px 12px rgba(37,99,235,.30)}
+    50%{box-shadow:0 3px 18px rgba(37,99,235,.60)}
+  }
   .dropzone{
     display:none; border:2px dashed var(--accent); border-radius:12px;
     background:var(--accent-soft); color:var(--accent); font-weight:700;
@@ -239,7 +249,7 @@
       <textarea id="msgFoot" rows="1">감사합니다.</textarea>
       <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:10px">
         <label class="chk"><input type="checkbox" id="msgFence" checked> 코드블록(```)으로 감싸 정렬 유지</label>
-        <label class="chk"><input type="checkbox" id="msgAscii"> 화살표를 +/− 로 (글꼴 어긋남 완전 방지)</label>
+        <label class="chk"><input type="checkbox" id="msgAscii" checked> 화살표를 +/− 로 (글꼴 어긋남 완전 방지)</label>
       </div>
       <label class="mlabel">미리보기 (가운데 표는 자동 생성)</label>
       <pre id="msgPreview"></pre>
