@@ -1,0 +1,737 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🌙 밤하늘 독서부 — 반별 독서 현황</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#fff; --line:#e3e6eb; --ink:#1f2530; --muted:#6b7280;
+    --accent:#2563eb; --accent-soft:#eff4ff; --head:#f0f4fb;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:"Segoe UI","Malgun Gothic","맑은 고딕",sans-serif;
+    background:var(--bg); color:var(--ink); font-size:14px;
+  }
+  header{
+    background:
+      radial-gradient(2px 2px at 15% 35%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 35% 20%, #dfe6ff, transparent),
+      radial-gradient(1px 1px at 55% 55%, #fff, transparent),
+      radial-gradient(1.5px 1.5px at 72% 30%, #cdd6ff, transparent),
+      radial-gradient(1px 1px at 88% 60%, #fff, transparent),
+      radial-gradient(1px 1px at 46% 78%, #a8b3ff, transparent),
+      radial-gradient(2px 2px at 92% 25%, #fff, transparent),
+      radial-gradient(ellipse at 80% 15%, #fdf6c9 0 4px, rgba(253,246,201,.25) 5px 9px, transparent 10px),
+      linear-gradient(160deg, #070b1f 0%, #131c46 55%, #2a1a4a 100%);
+    border-bottom:1px solid #2a3566;
+    color:#fff; padding:20px 24px; position:sticky; top:0; z-index:20;
+  }
+  header h1{margin:0; font-size:20px; font-weight:800; color:#fff; text-shadow:0 1px 8px rgba(120,140,255,.5)}
+  header .sub{color:#c3cbe6; font-size:12.5px; margin-top:4px}
+  .wrap{padding:20px 24px; max-width:1400px; margin:0 auto}
+  .toolbar{
+    display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end;
+    background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:16px; margin-bottom:18px;
+  }
+  .field{display:flex; flex-direction:column; gap:6px}
+  .field label{font-size:11.5px; color:var(--muted); font-weight:600; letter-spacing:.02em}
+  .seg{display:inline-flex; border:1px solid var(--line); border-radius:9px; overflow:hidden; background:#fafbfc}
+  .seg button{
+    border:0; background:transparent; padding:8px 15px; cursor:pointer;
+    font-size:13.5px; color:var(--ink); font-weight:600;
+  }
+  .seg button.active{background:var(--accent); color:#fff}
+  select, .chk{
+    border:1px solid var(--line); border-radius:8px; padding:8px 10px;
+    background:#fff; font-size:13.5px; color:var(--ink); min-height:36px;
+  }
+  .chk{display:inline-flex; align-items:center; gap:7px; cursor:pointer; user-select:none}
+  .spacer{flex:1}
+  .stat-row{display:flex; gap:14px; flex-wrap:wrap; margin-bottom:18px}
+  .stat{
+    background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:14px 18px; min-width:150px; flex:1;
+  }
+  .stat .n{font-size:24px; font-weight:800; color:var(--accent)}
+  .stat .l{font-size:12px; color:var(--muted); margin-top:2px}
+  .tablecard{
+    background:var(--card); border:1px solid var(--line); border-radius:12px;
+    overflow:auto; max-height:70vh;
+  }
+  table{border-collapse:collapse; width:100%; font-variant-numeric:tabular-nums}
+  th,td{padding:9px 12px; text-align:center; border-bottom:1px solid var(--line); white-space:nowrap}
+  thead th{
+    position:sticky; top:0; background:var(--head); font-weight:700; z-index:5;
+    border-bottom:2px solid var(--line);
+  }
+  tbody th{
+    position:sticky; left:0; background:var(--card); text-align:left;
+    font-weight:700; z-index:4; box-shadow:1px 0 0 var(--line);
+  }
+  thead th:first-child{left:0; z-index:6}
+  td.val{color:var(--ink)}
+  td.zero{color:#c9ccd2}
+  td.rowtot,th.rowtot{background:var(--accent-soft); font-weight:700}
+  tr.tot th, tr.tot td{background:#eef1f6; font-weight:800; border-top:2px solid var(--line)}
+  .heat{border-radius:5px}
+  .empty{padding:50px; text-align:center; color:var(--muted)}
+  .attach{
+    border:1px solid var(--accent); background:var(--accent-soft); color:var(--accent);
+    font-weight:700; font-size:13.5px; padding:8px 14px; border-radius:8px; cursor:pointer;
+    min-height:36px;
+  }
+  .attach:hover{background:#e2ecff}
+  .dropzone{
+    display:none; border:2px dashed var(--accent); border-radius:12px;
+    background:var(--accent-soft); color:var(--accent); font-weight:700;
+    padding:26px; text-align:center; margin-bottom:16px;
+  }
+  body.dragging .dropzone{display:block}
+  body.dragging .dropzone.over{background:#dbe7ff}
+  .hintline{color:var(--muted); font-size:12.5px; margin-bottom:8px}
+  tbody th.clk{cursor:pointer}
+  tbody th.clk:hover{color:var(--accent); text-decoration:underline}
+  .rank{display:inline-block; min-width:20px; color:var(--muted); font-weight:800; margin-right:6px}
+  .rank.top{color:#d97706}
+  .modal{
+    display:none; position:fixed; inset:0; background:rgba(20,25,35,.45);
+    z-index:50; align-items:center; justify-content:center; padding:20px;
+  }
+  .modal.open{display:flex}
+  .modal-box{
+    background:#fff; border-radius:14px; width:min(680px,100%); max-height:85vh;
+    display:flex; flex-direction:column; overflow:hidden; box-shadow:0 20px 60px rgba(0,0,0,.3);
+  }
+  .modal-head{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:15px 20px; border-bottom:1px solid var(--line); font-weight:800; font-size:16px;
+  }
+  .modal-x{border:0; background:transparent; font-size:18px; cursor:pointer; color:var(--muted)}
+  .modal-body{padding:8px 20px 20px; overflow:auto}
+  .modal-body table{font-size:13px}
+  .modal-body th,.modal-body td{text-align:left}
+  .modal-body td.c{text-align:center}
+  .booklist{color:var(--muted); font-size:12px; white-space:normal; max-width:340px}
+  .mlabel{display:block; font-size:12px; font-weight:700; color:var(--muted); margin:12px 0 5px}
+  #msgHead,#msgFoot{width:100%; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-family:inherit; font-size:13.5px; resize:vertical}
+  #msgPreview{
+    background:#0f172a; color:#e2e8f0; border-radius:8px; padding:14px;
+    font-family:"Consolas","D2Coding","Courier New",monospace; font-size:13px; line-height:1.5;
+    white-space:pre; overflow:auto; margin:0;
+  }
+  .filehint{
+    display:none; background:#fff8e6; border:1px solid #f0d98a; color:#7a5a00;
+    padding:14px 18px; border-radius:10px; margin-bottom:16px; font-size:13px;
+  }
+  .filehint input{margin-top:8px}
+  footer{color:var(--muted); font-size:12px; padding:8px 24px 30px; text-align:center}
+</style>
+</head>
+<body>
+<header>
+  <h1>🌙 밤하늘 독서부</h1>
+  <div class="sub" id="sub">대출 이력 데이터를 불러오는 중…</div>
+</header>
+
+<div class="wrap">
+  <div class="filehint" id="filehint">
+    <b>대출 이력 CSV</b>를 선택하거나 화면 아무 곳에나 끌어다 놓으면 표가 만들어집니다.
+    (파일은 브라우저 안에서만 처리되며 어디에도 전송되지 않습니다.)
+    <br><input type="file" id="fileInput" accept=".csv,.txt">
+  </div>
+
+  <div class="toolbar">
+    <div class="field">
+      <label>기간 단위</label>
+      <div class="seg" id="periodSeg">
+        <button data-p="week" class="active">주간</button>
+        <button data-p="month">월간</button>
+        <button data-p="semester">학기</button>
+        <button data-p="year">연간</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>집계 방식</label>
+      <div class="seg" id="metricSeg">
+        <button data-m="readers" class="active" title="빌린 서로 다른 학생 1명당 1점">점수(1인 1점)</button>
+        <button data-m="loans" title="총 대출 건수">대출 건수</button>
+        <button data-m="active" title="반별로 최소 1명이 1회라도 빌리면 1점">반 활동(1점)</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>기간 설정 (시작 ~ 종료)</label>
+      <div style="display:flex; gap:6px; align-items:center">
+        <input type="date" id="fromDate">
+        <span style="color:var(--muted)">~</span>
+        <input type="date" id="toDate">
+        <button type="button" class="attach" id="rangeReset" style="padding:6px 10px">초기화</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>학년</label>
+      <select id="gradeSel"><option value="">전체 학년</option></select>
+    </div>
+    <div class="field">
+      <label>대상</label>
+      <label class="chk"><input type="checkbox" id="incBu" checked> 도서부 포함</label>
+    </div>
+    <div class="field">
+      <label>정렬</label>
+      <select id="sortSel">
+        <option value="name">학년·반 순</option>
+        <option value="desc">점수 높은 순</option>
+        <option value="asc">점수 낮은 순</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>표시</label>
+      <label class="chk"><input type="checkbox" id="heatChk" checked> 히트맵</label>
+    </div>
+    <div class="field">
+      <label>내보내기</label>
+      <button type="button" class="attach" id="exportBtn">⬇ CSV/엑셀</button>
+    </div>
+    <div class="field">
+      <label>알림</label>
+      <button type="button" class="attach" id="noticeBtn" style="border-color:#059669; color:#059669; background:#ecfdf5">📢 알림글 작성</button>
+    </div>
+    <div class="spacer"></div>
+    <div class="field">
+      <label>파일</label>
+      <button type="button" class="attach" id="attachBtn">📎 CSV 첨부</button>
+      <input type="file" id="fileInput2" accept=".csv,.txt" hidden>
+    </div>
+  </div>
+
+  <div class="dropzone" id="dropzone">여기에 CSV 파일을 놓으세요</div>
+
+  <div class="stat-row" id="statRow"></div>
+
+  <div class="hintline">💡 반 이름을 클릭하면 그 반 학생별 대출 상세가 열립니다.</div>
+  <div class="tablecard" id="tableCard">
+    <div class="empty">데이터를 불러오는 중…</div>
+  </div>
+</div>
+
+<div class="modal" id="modal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span id="modalTitle">반 상세</span>
+      <button class="modal-x" id="modalClose">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+  </div>
+</div>
+
+<div class="modal" id="msgModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <span>📢 업무 메신저 알림글</span>
+      <button class="modal-x" id="msgClose">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="mlabel">머리말</label>
+      <textarea id="msgHead" rows="2">안녕하세요. 도서관입니다. 현황 알려드립니다.</textarea>
+      <label class="mlabel">꼬리말</label>
+      <textarea id="msgFoot" rows="1">감사합니다.</textarea>
+      <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:10px">
+        <label class="chk"><input type="checkbox" id="msgFence" checked> 코드블록(```)으로 감싸 정렬 유지</label>
+        <label class="chk"><input type="checkbox" id="msgAscii"> 화살표를 +/− 로 (글꼴 어긋남 완전 방지)</label>
+      </div>
+      <label class="mlabel">미리보기 (가운데 표는 자동 생성)</label>
+      <pre id="msgPreview"></pre>
+      <div style="display:flex; gap:10px; margin-top:12px">
+        <button class="attach" id="msgCopy">📋 복사하기</button>
+        <span id="msgCopied" style="color:#059669; font-weight:700; align-self:center; display:none">복사됨!</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>학교 도서관 대출 이력 · 대출일자 기준 집계 · 브라우저에서만 처리(서버 전송 없음)</footer>
+
+<script>
+"use strict";
+
+// ---------- state ----------
+let RECORDS = [];        // {grade, cls, isBu, date(Date), ym, week, sem}
+let period = "week";
+let metric = "readers";    // readers(점수·1인1점) | loans | active
+let useHeat = true;
+let CURRENT = null;        // last rendered table state (for export + detail)
+let DATA_RANGE = null;     // {lo, hi} full date span of the data
+
+const KNOWN_GRADES = new Set(["학생","학생(도서부)","교사","수업활용"]);
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+// ---------- CSV parsing ----------
+// Fields are unquoted; some titles/authors contain commas, but the columns we
+// need are fixed from the left (등급/학년/반) and the date is the 2nd-to-last field.
+function splitLine(line){
+  return line.split(",");
+}
+
+function parseCSV(text){
+  const out = [];
+  const lines = text.split(/\r?\n/);
+  for(const raw of lines){
+    if(!raw || !raw.includes(",")) continue;
+    const f = splitLine(raw);
+    if(f.length < 10) continue;
+    const grade = (f[4]||"").trim();       // 등급
+    if(!KNOWN_GRADES.has(grade)) continue; // skip header / 대출이력 / blank rows
+    const dateStr = (f[f.length-2]||"").trim(); // 대출일자 = 2nd to last
+    if(!DATE_RE.test(dateStr)) continue;
+    const gy = (f[5]||"").trim();          // 학년
+    const cl = (f[6]||"").trim();          // 반
+    // only class-based readers (students & library club)
+    if(grade!=="학생" && grade!=="학생(도서부)") continue;
+    if(!gy || !cl || gy==="0" || cl==="0") continue;
+    const d = new Date(dateStr+"T00:00:00");
+    if(isNaN(d)) continue;
+    out.push({
+      grade:Number(gy), cls:Number(cl), isBu: grade==="학생(도서부)",
+      card:(f[2]||"").trim(),              // 대출증번호 (고유 학생 식별)
+      name:(f[3]||"").trim(),              // 이름
+      title:(f.slice(9, Math.max(10,f.length-4)).join(",")).trim(), // 서명(쉼표 포함 가능)
+      date:d, dateStr,
+      ym: dateStr.slice(0,7),
+      week: mondayOf(d),
+      sem: semesterOf(d)
+    });
+  }
+  return out;
+}
+
+function mondayOf(d){
+  const x = new Date(d);
+  const day = (x.getDay()+6)%7; // Mon=0
+  x.setDate(x.getDate()-day);
+  return x.toISOString().slice(0,10);
+}
+function semesterOf(d){
+  const m = d.getMonth()+1;
+  // 1학기: 3~8월, 2학기: 9~익년2월
+  return (m>=3 && m<=8) ? d.getFullYear()+" 1학기" : d.getFullYear()+" 2학기";
+}
+
+// ---------- bucketing ----------
+function bucketKey(r){
+  if(period==="week") return r.week;
+  if(period==="month") return r.ym;
+  if(period==="semester") return r.sem;
+  return "연간 합계";
+}
+function bucketLabel(key){
+  if(period==="month"){ const [y,m]=key.split("-"); return `${Number(m)}월`; }
+  if(period==="week"){ const [y,m,d]=key.split("-"); return `${Number(m)}/${Number(d)}~`; }
+  return key;
+}
+
+// ---------- rendering ----------
+function render(){
+  const gradeFilter = document.getElementById("gradeSel").value;
+  const incBu = document.getElementById("incBu").checked;
+  const from = document.getElementById("fromDate").value;   // "YYYY-MM-DD" or ""
+  const to   = document.getElementById("toDate").value;
+
+  const rows = RECORDS.filter(r=>{
+    if(!incBu && r.isBu) return false;
+    if(gradeFilter && r.grade!==Number(gradeFilter)) return false;
+    if(from && r.dateStr < from) return false;
+    if(to   && r.dateStr > to)   return false;
+    return true;
+  });
+
+  // collect buckets & classes; each cell keeps a loan count + set of unique cards
+  const buckets = new Set();
+  const classes = new Set();
+  const grid = new Map();  // clsKey -> Map(bucket -> {n, cards:Set})
+  for(const r of rows){
+    const b = bucketKey(r);
+    const c = r.grade+"-"+r.cls;
+    buckets.add(b); classes.add(c);
+    if(!grid.has(c)) grid.set(c, new Map());
+    const m = grid.get(c);
+    let cell = m.get(b);
+    if(!cell){ cell={n:0, cards:new Set()}; m.set(b,cell); }
+    cell.n++; if(r.card) cell.cards.add(r.card);
+  }
+
+  const bucketList = [...buckets].sort();
+  const classList = [...classes].sort((a,b)=>{
+    const [ga,ca]=a.split("-").map(Number), [gb,cb]=b.split("-").map(Number);
+    return ga-gb || ca-cb;
+  });
+
+  updateStats(rows, classList.length, bucketList.length);
+
+  const card = document.getElementById("tableCard");
+  if(!rows.length){ card.innerHTML='<div class="empty">해당 조건의 대출 기록이 없습니다.</div>'; return; }
+
+  // cell value depends on metric
+  const cellVal = cell => {
+    if(!cell) return 0;
+    if(metric==="loans") return cell.n;
+    if(metric==="active") return cell.n>0 ? 1 : 0;
+    return cell.cards.size;          // readers
+  };
+
+  // per-class row totals (readers = unique students across whole period)
+  const rowTotalOf = m => {
+    if(metric==="readers"){
+      const s=new Set(); for(const b of bucketList){ const cell=m.get(b); if(cell) cell.cards.forEach(x=>s.add(x)); }
+      return s.size;
+    }
+    let t=0; for(const b of bucketList) t+=cellVal(m.get(b)); return t;
+  };
+  const rowTot = {}; let maxCell=0;
+  for(const c of classList){
+    const m = grid.get(c);
+    rowTot[c] = rowTotalOf(m);
+    for(const b of bucketList){ const v=cellVal(m.get(b)); if(v>maxCell) maxCell=v; }
+  }
+
+  // sorting
+  const sortMode = document.getElementById("sortSel").value;
+  if(sortMode==="desc") classList.sort((a,b)=>rowTot[b]-rowTot[a] || a.localeCompare(b));
+  else if(sortMode==="asc") classList.sort((a,b)=>rowTot[a]-rowTot[b] || a.localeCompare(b));
+
+  // column totals (readers de-duped per column)
+  const colTot = {};
+  for(const b of bucketList){
+    if(metric==="readers"){ const s=new Set(); for(const c of classList){ const cell=grid.get(c).get(b); if(cell) cell.cards.forEach(x=>s.add(x)); } colTot[b]=s.size; }
+    else { let t=0; for(const c of classList) t+=cellVal(grid.get(c).get(b)); colTot[b]=t; }
+  }
+  // grand total
+  let grand;
+  if(metric==="loans") grand=rows.length;
+  else if(metric==="readers") grand=new Set(rows.map(r=>r.card).filter(Boolean)).size;
+  else { grand=0; for(const c of classList){ const m=grid.get(c); for(const b of bucketList){ if((m.get(b)?.n||0)>0) grand++; } } }
+
+  const showRank = (sortMode!=="name");
+  let html = "<table><thead><tr><th>반</th>";
+  for(const b of bucketList) html += `<th>${bucketLabel(b)}</th>`;
+  html += `<th class="rowtot">${metric==="active"?"활동 기간":"합계"}</th></tr></thead><tbody>`;
+
+  classList.forEach((c,i)=>{
+    const m = grid.get(c);
+    const [g,cl] = c.split("-");
+    let tds="";
+    for(const b of bucketList){
+      const v = cellVal(m.get(b));
+      const cls = v===0 ? "zero" : "val";
+      const disp = (metric==="active") ? (v?"✔":"·") : (v||"·");
+      const style = (useHeat && v>0) ? ` style="${heatStyle(v,maxCell)}"` : "";
+      tds += `<td class="${cls} heat"${style}>${disp}</td>`;
+    }
+    const rank = showRank ? `<span class="rank ${i<3&&sortMode==="desc"?"top":""}">${i+1}</span>` : "";
+    html += `<tr><th class="clk" data-cls="${c}">${rank}${g}학년 ${cl}반</th>${tds}<td class="rowtot">${rowTot[c]}</td></tr>`;
+  });
+
+  html += `<tr class="tot"><th>합계</th>`;
+  for(const b of bucketList) html += `<td>${colTot[b]||0}</td>`;
+  html += `<td class="rowtot">${grand}</td></tr>`;
+  html += "</tbody></table>";
+  card.innerHTML = html;
+
+  // stash for export + detail modal
+  CURRENT = {rows, classList, bucketList, grid, rowTot, colTot, grand};
+  card.querySelectorAll("th.clk").forEach(th=>{
+    th.addEventListener("click", ()=>openDetail(th.dataset.cls));
+  });
+}
+
+function heatStyle(v,max){
+  if(max<=0) return "";
+  const t = Math.pow(v/max, 0.6);           // ease so small values still visible
+  // lighter: max darkness = previous mid-tone (t*87 halved => t*44)
+  let light = 96 - Math.round(t*44);        // 96% -> ~52%
+  const ink = light < 45 ? "#fff" : "var(--ink)";
+  return `background:hsl(217 85% ${light}%); color:${ink}`;
+}
+
+function updateStats(rows, nClass, nBucket){
+  const total = rows.length;
+  const readers = new Set(rows.map(r=>r.card).filter(Boolean)).size;
+  const perClass = nClass ? (total/nClass) : 0;
+  const el = document.getElementById("statRow");
+  el.innerHTML = `
+    <div class="stat"><div class="n">${total.toLocaleString()}</div><div class="l">총 대출 건수</div></div>
+    <div class="stat"><div class="n">${readers.toLocaleString()}</div><div class="l">참여 학생수(고유)</div></div>
+    <div class="stat"><div class="n">${nClass}</div><div class="l">집계 반 수</div></div>
+    <div class="stat"><div class="n">${perClass.toFixed(1)}</div><div class="l">반 평균 대출</div></div>`;
+}
+function periodName(){
+  return {week:"주간",month:"월간",semester:"학기",year:"연간"}[period];
+}
+
+// ---------- events ----------
+document.getElementById("periodSeg").addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  period = b.dataset.p;
+  [...e.currentTarget.children].forEach(x=>x.classList.toggle("active", x===b));
+  render();
+});
+document.getElementById("metricSeg").addEventListener("click", e=>{
+  const b = e.target.closest("button"); if(!b) return;
+  metric = b.dataset.m;
+  [...e.currentTarget.children].forEach(x=>x.classList.toggle("active", x===b));
+  render();
+});
+document.getElementById("gradeSel").addEventListener("change", render);
+document.getElementById("incBu").addEventListener("change", render);
+document.getElementById("sortSel").addEventListener("change", render);
+document.getElementById("heatChk").addEventListener("change", e=>{ useHeat=e.target.checked; render(); });
+document.getElementById("exportBtn").addEventListener("click", exportCSV);
+document.getElementById("fromDate").addEventListener("change", render);
+document.getElementById("toDate").addEventListener("change", render);
+document.getElementById("rangeReset").addEventListener("click", ()=>{
+  document.getElementById("fromDate").value=""; document.getElementById("toDate").value=""; render();
+});
+document.getElementById("noticeBtn").addEventListener("click", openNotice);
+
+// ---------- detail modal ----------
+const modal = document.getElementById("modal");
+document.getElementById("modalClose").addEventListener("click", closeModal);
+modal.addEventListener("click", e=>{ if(e.target===modal) closeModal(); });
+document.addEventListener("keydown", e=>{ if(e.key==="Escape"){ closeModal(); document.getElementById("msgModal").classList.remove("open"); } });
+function closeModal(){ modal.classList.remove("open"); }
+
+function openDetail(clsKey){
+  if(!CURRENT) return;
+  const [g,cl] = clsKey.split("-");
+  const recs = CURRENT.rows.filter(r=> (r.grade+"-"+r.cls)===clsKey);
+  // aggregate by student (card)
+  const byStu = new Map();
+  for(const r of recs){
+    const k = r.card || r.name;
+    if(!byStu.has(k)) byStu.set(k, {name:r.name, n:0, books:[]});
+    const s = byStu.get(k); s.n++; if(r.title) s.books.push(r.title);
+  }
+  const list = [...byStu.values()].sort((a,b)=>b.n-a.n || a.name.localeCompare(b.name));
+  document.getElementById("modalTitle").textContent = `${g}학년 ${cl}반 · 학생 ${list.length}명 · 대출 ${recs.length}건`;
+  let h = `<table><thead><tr><th>#</th><th>학생</th><th class="c">대출수</th><th>빌린 책</th></tr></thead><tbody>`;
+  list.forEach((s,i)=>{
+    const books = [...new Set(s.books)].join(", ");
+    h += `<tr><td class="c">${i+1}</td><td>${esc(s.name)}</td><td class="c">${s.n}</td><td class="booklist">${esc(books)}</td></tr>`;
+  });
+  h += `</tbody></table>`;
+  document.getElementById("modalBody").innerHTML = h;
+  modal.classList.add("open");
+}
+function esc(s){ return (s||"").replace(/[&<>"]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
+
+// ---------- export current table to CSV (Excel-friendly, UTF-8 BOM) ----------
+function exportCSV(){
+  if(!CURRENT){ return; }
+  const {classList, bucketList, grid, rowTot, colTot, grand} = CURRENT;
+  const cellVal = cell => !cell?0 : metric==="loans"?cell.n : metric==="active"?(cell.n>0?1:0) : cell.cards.size;
+  const q = v => { v=String(v); return /[",\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
+  const lines = [];
+  const head = ["반", ...bucketList.map(bucketLabel), metric==="active"?"활동기간":"합계"];
+  lines.push(head.map(q).join(","));
+  for(const c of classList){
+    const [g,cl]=c.split("-"); const m=grid.get(c);
+    const row=[`${g}학년 ${cl}반`, ...bucketList.map(b=>cellVal(m.get(b))), rowTot[c]];
+    lines.push(row.map(q).join(","));
+  }
+  lines.push(["합계", ...bucketList.map(b=>colTot[b]||0), grand].map(q).join(","));
+  const metricName = {readers:"점수(1인1점)", loans:"대출건수", active:"반활동"}[metric];
+  const fname = `반별독서_${periodName()}_${metricName}.csv`;
+  const blob = new Blob(["﻿"+lines.join("\r\n")], {type:"text/csv;charset=utf-8"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = fname; a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 1000);
+}
+
+// ---------- notice composer (ASCII table for work messenger) ----------
+const msgModal = document.getElementById("msgModal");
+document.getElementById("msgClose").addEventListener("click", ()=>msgModal.classList.remove("open"));
+msgModal.addEventListener("click", e=>{ if(e.target===msgModal) msgModal.classList.remove("open"); });
+document.getElementById("msgHead").addEventListener("input", refreshNotice);
+document.getElementById("msgFoot").addEventListener("input", refreshNotice);
+document.getElementById("msgFence").addEventListener("change", refreshNotice);
+document.getElementById("msgAscii").addEventListener("change", refreshNotice);
+document.getElementById("msgCopy").addEventListener("click", ()=>{
+  const txt = document.getElementById("msgPreview").textContent;
+  navigator.clipboard.writeText(txt).then(showCopied, ()=>{
+    // fallback for non-secure contexts
+    const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta);
+    ta.select(); try{document.execCommand("copy");}catch(e){} ta.remove(); showCopied();
+  });
+});
+function showCopied(){
+  const c=document.getElementById("msgCopied"); c.style.display="inline";
+  setTimeout(()=>c.style.display="none", 1500);
+}
+
+// display width: CJK/Hangul count as 2 columns
+function dispW(s){ let w=0; for(const ch of String(s)) w += /[ᄀ-ᇿ⺀-꓏가-힣豈-﫿︰-﹏＀-｠￠-￦▲▼]/.test(ch)?2:1; return w; }
+function padW(s,width,align){ s=String(s); const g=Math.max(0,width-dispW(s)); const sp=" ".repeat(g); return align==="r"?sp+s:align==="c"?" ".repeat(Math.floor(g/2))+s+" ".repeat(Math.ceil(g/2)):s+sp; }
+
+function asciiTable(headers, rows, aligns){
+  const w = headers.map((h,i)=> Math.max(dispW(h), ...rows.map(r=>dispW(r[i]))) );
+  const sep = "+" + w.map(x=>"-".repeat(x+2)).join("+") + "+";
+  const line = cells => "| " + cells.map((c,i)=>padW(c,w[i],aligns[i]||"l")).join(" | ") + " |";
+  const out = [sep, line(headers), sep];
+  for(const r of rows) out.push(line(r));
+  out.push(sep);
+  return out.join("\n");
+}
+
+function metricLabel(){ return {readers:"점수", loans:"대출건수", active:"활동반수"}[metric]; }
+
+function scoreOf(list){
+  if(metric==="loans") return list.length;
+  if(metric==="active") return list.length>0?1:0;
+  return new Set(list.map(r=>r.card)).size;   // readers
+}
+function trendMark(d, hasPrev, ascii){
+  if(!hasPrev) return ascii?"NEW":"NEW";
+  if(d>0) return ascii?("+"+d):("▲"+d);
+  if(d<0) return ascii?("-"+(-d)):("▼"+(-d));
+  return ascii?"0":"=";
+}
+
+function refreshNotice(){
+  if(!CURRENT || !CURRENT.rows.length){ document.getElementById("msgPreview").textContent="(표시할 데이터가 없습니다)"; return; }
+  const data = CURRENT.rows;
+  const useFence = document.getElementById("msgFence").checked;
+  const ascii = document.getElementById("msgAscii").checked;
+
+  // weekly comparison: latest week vs previous week (within current filters/range)
+  const weeks = [...new Set(data.map(r=>r.week))].sort();
+  const wCur = weeks[weeks.length-1];
+  const wPrev = weeks[weeks.length-2];
+  const hasPrev = wPrev !== undefined;
+
+  const curBy={}, prevBy={};
+  for(const r of data){
+    const c = r.grade+"-"+r.cls;
+    if(r.week===wCur) (curBy[c]=curBy[c]||[]).push(r);
+    else if(r.week===wPrev) (prevBy[c]=prevBy[c]||[]).push(r);
+  }
+  const classes = [...new Set([...Object.keys(curBy), ...Object.keys(prevBy)])];
+  const scored = classes.map(c=>{
+    const [g,cl]=c.split("-").map(Number);
+    const cur=scoreOf(curBy[c]||[]), prev=scoreOf(prevBy[c]||[]);
+    return {g, cl, cur, prev, d:cur-prev};
+  });
+
+  // group & rank per grade
+  const grades = [...new Set(scored.map(s=>s.g))].sort((a,b)=>a-b);
+  const trend = d => trendMark(d, hasPrev, ascii);
+  const blocks = [];
+  for(const g of grades){
+    const list = scored.filter(s=>s.g===g).sort((a,b)=> b.cur-a.cur || a.cl-b.cl);
+    const rows = list.map((s,i)=> [String(i+1), `${s.cl}반`, String(s.cur), trend(s.d)]);
+    const gCur = scoreOf(data.filter(r=>r.week===wCur && r.grade===g));
+    const gPrev = scoreOf(data.filter(r=>r.week===wPrev && r.grade===g));
+    rows.push(["", "소계", String(gCur), trend(gCur-gPrev)]);
+    const tbl = asciiTable(["순위","반",metricLabel(),"전주대비"], rows, ["c","l","r","r"]);
+    blocks.push(`■ ${g}학년\n${tbl}`);
+  }
+  // overall total line
+  const curAll = scoreOf(data.filter(r=>r.week===wCur));
+  const prevAll = scoreOf(data.filter(r=>r.week===wPrev));
+  blocks.push(`총 합계: ${curAll}  (전주대비 ${trend(curAll-prevAll)})`);
+  let body = blocks.join("\n\n");
+  if(useFence) body = "```\n"+body+"\n```";
+
+  const gradeSel=document.getElementById("gradeSel");
+  const gtxt = gradeSel.value ? `${gradeSel.value}학년 ` : "전체 ";
+  const weekEnd = w => { const d=new Date(w+"T00:00:00"); d.setDate(d.getDate()+6); return d.toISOString().slice(0,10); };
+  const arr = ascii ? "(+증가·-감소)" : "(▲증가·▼감소)";
+  let title = `[${gtxt}반별 독서현황 · 주간 · ${metricLabel()}]\n이번 주: ${wCur} ~ ${weekEnd(wCur)}`;
+  if(hasPrev) title += `\n전주: ${wPrev} ~ ${weekEnd(wPrev)} 대비 ${arr}`;
+
+  const head = document.getElementById("msgHead").value.trim();
+  const foot = document.getElementById("msgFoot").value.trim();
+  const plain = [head, "", title, "", body, "", foot].join("\n");
+
+  // colored preview; copy still yields plain text (arrows kept, color dropped)
+  const pre = document.getElementById("msgPreview");
+  pre.innerHTML = esc(plain)
+    .replace(/▲(\d+)/g,'<span style="color:#fb7185;font-weight:700">▲$1</span>')
+    .replace(/▼(\d+)/g,'<span style="color:#60a5fa;font-weight:700">▼$1</span>')
+    .replace(/(?<![\w])\+(\d+)/g,'<span style="color:#fb7185;font-weight:700">+$1</span>')
+    .replace(/(?<![\w\d])-(\d+)/g,'<span style="color:#60a5fa;font-weight:700">-$1</span>');
+}
+function openNotice(){ refreshNotice(); msgModal.classList.add("open"); }
+
+// Read bytes then decode: try UTF-8, fall back to EUC-KR/CP949 if it looks garbled.
+function decodeSmart(buf){
+  const u8 = new TextDecoder("utf-8", {fatal:false}).decode(buf);
+  const bad = (u8.match(/�/g)||[]).length;   // replacement chars => wrong encoding
+  if(bad > 3){
+    try { return new TextDecoder("euc-kr").decode(buf); } catch(e){}
+  }
+  return u8;
+}
+function handleFile(file){
+  const rd = new FileReader();
+  rd.onload = ()=>{
+    const text = decodeSmart(rd.result);
+    ingest(text);
+    if(RECORDS.length){
+      document.getElementById("sub").textContent =
+        `첨부: ${file.name} · 학생 대출 ${RECORDS.length.toLocaleString()}건`;
+    } else {
+      alert("이 파일에서 반별 대출 기록을 찾지 못했습니다.\n(등급/학년/반/대출일자 컬럼이 있는 대출 이력 CSV인지 확인해 주세요.)");
+    }
+  };
+  rd.readAsArrayBuffer(file);
+}
+document.getElementById("fileInput").addEventListener("change", e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); });
+document.getElementById("fileInput2").addEventListener("change", e=>{ if(e.target.files[0]) handleFile(e.target.files[0]); });
+document.getElementById("attachBtn").addEventListener("click", ()=>document.getElementById("fileInput2").click());
+
+// drag & drop anywhere on the page
+const dz = document.getElementById("dropzone");
+let dragDepth = 0;
+window.addEventListener("dragenter", e=>{ e.preventDefault(); dragDepth++; document.body.classList.add("dragging"); });
+window.addEventListener("dragover", e=>{ e.preventDefault(); });
+window.addEventListener("dragleave", e=>{ if(--dragDepth<=0){ dragDepth=0; document.body.classList.remove("dragging"); } });
+window.addEventListener("drop", e=>{
+  e.preventDefault(); dragDepth=0; document.body.classList.remove("dragging"); dz.classList.remove("over");
+  const f = e.dataTransfer.files && e.dataTransfer.files[0];
+  if(f) handleFile(f);
+});
+dz.addEventListener("dragover", ()=>dz.classList.add("over"));
+dz.addEventListener("dragleave", ()=>dz.classList.remove("over"));
+
+// ---------- init ----------
+function ingest(text){
+  RECORDS = parseCSV(text);
+  document.getElementById("filehint").style.display = RECORDS.length ? "none" : "block";
+  // populate grade select
+  const grades = [...new Set(RECORDS.map(r=>r.grade))].sort((a,b)=>a-b);
+  const sel = document.getElementById("gradeSel");
+  sel.innerHTML = '<option value="">전체 학년</option>' + grades.map(g=>`<option value="${g}">${g}학년</option>`).join("");
+  // date range for subtitle
+  if(RECORDS.length){
+    const ds = RECORDS.map(r=>r.dateStr).sort();
+    const lo=ds[0], hi=ds[ds.length-1];
+    document.getElementById("sub").textContent =
+      `기간 ${lo} ~ ${hi} · 학생 대출 ${RECORDS.length.toLocaleString()}건 (대출일자 기준)`;
+    for(const id of ["fromDate","toDate"]){ const el=document.getElementById(id); el.min=lo; el.max=hi; }
+    DATA_RANGE = {lo, hi};
+  }
+  render();
+}
+
+fetch("2026.csv")
+  .then(r=>{ if(!r.ok) throw new Error("no file"); return r.arrayBuffer(); })
+  .then(buf=>{ ingest(new TextDecoder("utf-8").decode(buf)); })
+  .catch(()=>{
+    document.getElementById("filehint").style.display="block";
+    document.getElementById("sub").textContent="대출 이력 CSV를 불러오면 현황이 표시됩니다.";
+    document.getElementById("tableCard").innerHTML='<div class="empty">📎 상단의 <b>CSV 첨부</b> 버튼을 누르거나, 이 화면에 CSV 파일을 끌어다 놓으면 표가 만들어집니다.</div>';
+  });
+</script>
+</body>
+</html>
