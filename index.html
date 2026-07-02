@@ -127,11 +127,21 @@
   .booklist{color:var(--muted); font-size:12px; white-space:normal; max-width:340px}
   .mlabel{display:block; font-size:12px; font-weight:700; color:var(--muted); margin:12px 0 5px}
   #msgHead,#msgFoot{width:100%; border:1px solid var(--line); border-radius:8px; padding:8px 10px; font-family:inherit; font-size:13.5px; resize:vertical}
-  #msgPreview{
-    background:#0f172a; color:#e2e8f0; border-radius:8px; padding:14px;
+  #msgPreview{ border-radius:8px; overflow:auto; max-height:48vh }
+  #msgPreview pre{
+    background:#0f172a; color:#e2e8f0; border-radius:8px; padding:14px; margin:0;
     font-family:"Consolas","D2Coding","Courier New",monospace; font-size:13px; line-height:1.5;
-    white-space:pre; overflow:auto; margin:0;
+    white-space:pre; overflow:auto;
   }
+  #msgPreview table.notice{border-collapse:collapse; width:100%; font-size:12.5px; background:#fff}
+  #msgPreview table.notice th, #msgPreview table.notice td{
+    border:1px solid #cfd6e4; padding:5px 8px; text-align:center; white-space:nowrap;
+  }
+  #msgPreview table.notice thead th{background:#fff2a8; font-weight:800}
+  #msgPreview table.notice td.cls, #msgPreview table.notice th.cls{background:#fde8d5; font-weight:700; text-align:left}
+  #msgPreview table.notice td.cum{background:#fff2a8; font-weight:800}
+  #msgPreview .up{color:#dc2626; font-weight:800}
+  #msgPreview .down{color:#2563eb; font-weight:800}
   .filehint{
     display:none; background:#fff8e6; border:1px solid #f0d98a; color:#7a5a00;
     padding:14px 18px; border-radius:10px; margin-bottom:16px; font-size:13px;
@@ -245,18 +255,18 @@
     </div>
     <div class="modal-body">
       <label class="mlabel">머리말</label>
-      <textarea id="msgHead" rows="2">안녕하세요. 도서관입니다. 현황 알려드립니다.</textarea>
+      <textarea id="msgHead" rows="2">독서 마라톤 포인트 현황 보내드립니다~</textarea>
       <label class="mlabel">꼬리말</label>
       <textarea id="msgFoot" rows="1">감사합니다.</textarea>
       <div style="display:flex; gap:16px; flex-wrap:wrap; margin-top:10px">
-        <label class="chk"><input type="checkbox" id="msgFence" checked> 코드블록(```)으로 감싸 정렬 유지</label>
-        <label class="chk"><input type="checkbox" id="msgAscii" checked> 화살표를 +/− 로 (글꼴 어긋남 완전 방지)</label>
+        <label class="chk"><input type="checkbox" id="msgText"> 메신저용 텍스트(ASCII)로 복사 — 카카오·밴드 등</label>
       </div>
-      <label class="mlabel">미리보기 (가운데 표는 자동 생성)</label>
-      <pre id="msgPreview"></pre>
-      <div style="display:flex; gap:10px; margin-top:12px">
-        <button class="attach" id="msgCopy">📋 복사하기</button>
-        <span id="msgCopied" style="color:#059669; font-weight:700; align-self:center; display:none">복사됨!</span>
+      <label class="mlabel">미리보기 (표 자동 생성 · 주별 점수 + 누계 + 전 주 대비)</label>
+      <div id="msgPreview"></div>
+      <div style="display:flex; gap:10px; margin-top:12px; align-items:center; flex-wrap:wrap">
+        <button class="attach" id="msgCopy">📋 표 복사하기</button>
+        <span id="msgCopied" style="color:#059669; font-weight:700; display:none">복사됨!</span>
+        <span style="color:var(--muted); font-size:11.5px">한글·엑셀·메일엔 표로, 메신저엔 위 옵션 체크 후 붙여넣기</span>
       </div>
     </div>
   </div>
@@ -355,7 +365,9 @@ function mondayOf(d){
   const x = new Date(d);
   const day = (x.getDay()+6)%7; // Mon=0
   x.setDate(x.getDate()-day);
-  return x.toISOString().slice(0,10);
+  // format from LOCAL parts (toISOString would shift by timezone, off-by-one day)
+  const y=x.getFullYear(), m=String(x.getMonth()+1).padStart(2,"0"), da=String(x.getDate()).padStart(2,"0");
+  return `${y}-${m}-${da}`;
 }
 function semesterOf(d){
   const m = d.getMonth()+1;
@@ -590,16 +602,29 @@ document.getElementById("msgClose").addEventListener("click", ()=>msgModal.class
 msgModal.addEventListener("click", e=>{ if(e.target===msgModal) msgModal.classList.remove("open"); });
 document.getElementById("msgHead").addEventListener("input", refreshNotice);
 document.getElementById("msgFoot").addEventListener("input", refreshNotice);
-document.getElementById("msgFence").addEventListener("change", refreshNotice);
-document.getElementById("msgAscii").addEventListener("change", refreshNotice);
-document.getElementById("msgCopy").addEventListener("click", ()=>{
-  const txt = document.getElementById("msgPreview").textContent;
-  navigator.clipboard.writeText(txt).then(showCopied, ()=>{
-    // fallback for non-secure contexts
-    const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta);
-    ta.select(); try{document.execCommand("copy");}catch(e){} ta.remove(); showCopied();
+document.getElementById("msgText").addEventListener("change", refreshNotice);
+document.getElementById("msgCopy").addEventListener("click", copyNotice);
+
+// NOTICE holds the last built content for copying
+let NOTICE = {html:"", text:""};
+function copyNotice(){
+  const textMode = document.getElementById("msgText").checked;
+  if(textMode || !(navigator.clipboard && window.ClipboardItem)){
+    const txt = NOTICE.text;
+    navigator.clipboard?.writeText(txt).then(showCopied, fallbackCopy.bind(null,txt)) ?? fallbackCopy(txt);
+    return;
+  }
+  // rich copy: table pastes as a real table into 한글/워드/엑셀/메일
+  const item = new ClipboardItem({
+    "text/html": new Blob([NOTICE.html], {type:"text/html"}),
+    "text/plain": new Blob([NOTICE.text], {type:"text/plain"})
   });
-});
+  navigator.clipboard.write([item]).then(showCopied, ()=>fallbackCopy(NOTICE.text));
+}
+function fallbackCopy(txt){
+  const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta);
+  ta.select(); try{document.execCommand("copy");}catch(e){} ta.remove(); showCopied();
+}
 function showCopied(){
   const c=document.getElementById("msgCopied"); c.style.display="inline";
   setTimeout(()=>c.style.display="none", 1500);
@@ -633,84 +658,108 @@ function trendMark(d, hasPrev, ascii){
   return ascii?"0":"=";
 }
 
-// period-specific wording + bucket display for the notice
-function noticeUnit(){
-  const weekEnd = w => { const d=new Date(w+"T00:00:00"); d.setDate(d.getDate()+6); return d.toISOString().slice(0,10); };
-  return {
-    week:  {cur:"이번 주", prev:"지난 주", cmp:"전주대비",  disp:k=>`${k} ~ ${weekEnd(k)}`},
-    month: {cur:"이번 달", prev:"지난 달", cmp:"전월대비",  disp:k=>{const[y,m]=k.split("-");return `${y}년 ${Number(m)}월`;}},
-    semester:{cur:"이번 학기", prev:"지난 학기", cmp:"전학기대비", disp:k=>k},
-    year:  {cur:"올해", prev:"작년", cmp:"전년대비", disp:k=>(DATA_RANGE?DATA_RANGE.lo.slice(0,4)+"년":k)}
-  }[period];
+// comparison-column label per period
+function cmpLabel(){ return {week:"전 주 대비", month:"전월 대비", semester:"전 학기 대비", year:"전년 대비"}[period]; }
+// column header for each bucket, e.g. "5/4~5/8(1주차)" for weeks
+function bucketHeader(key, idx){
+  if(period==="week"){
+    const s=new Date(key+"T00:00:00"); const e=new Date(s); e.setDate(e.getDate()+4); // Mon~Fri
+    const f=d=>`${d.getMonth()+1}/${d.getDate()}`;
+    return `${f(s)}~${f(e)}(${idx+1}주차)`;
+  }
+  if(period==="month"){ const[y,m]=key.split("-"); return `${Number(m)}월`; }
+  return key;
+}
+
+// build the notice model: rows of {cls, vals[], cum, delta}, ordered by class
+function buildNotice(){
+  const data = CURRENT.rows;
+  const buckets = [...new Set(data.map(r=>bucketKey(r)))].sort();
+  const classes = [...new Set(data.map(r=>r.grade+"-"+r.cls))]
+    .sort((a,b)=>{const[ga,ca]=a.split("-").map(Number),[gb,cb]=b.split("-").map(Number);return ga-gb||ca-cb;});
+  // per class per bucket score (1인 1일 1점)
+  const g={};
+  for(const r of data){ const c=r.grade+"-"+r.cls, b=bucketKey(r); (g[c]=g[c]||{}); (g[c][b]=g[c][b]||new Set()).add(r.card+"|"+r.dateStr); }
+  const val=(c,b)=> (g[c]&&g[c][b])?g[c][b].size:0;
+  const rows = classes.map(c=>{
+    const vals = buckets.map(b=>val(c,b));
+    const cum = vals.reduce((a,x)=>a+x,0);
+    const n = vals.length;
+    const delta = n>=2 ? vals[n-1]-vals[n-2] : null;
+    const [gg,cc]=c.split("-");
+    return {label:`${gg}-${cc}`, vals, cum, delta};
+  });
+  return {buckets, rows};
+}
+
+function trendCell(d){ // for HTML
+  if(d==null) return {t:"", cls:""};
+  if(d>0) return {t:`▲${d}`, cls:"up"};
+  if(d<0) return {t:`▼${-d}`, cls:"down"};
+  return {t:"0", cls:""};
+}
+function trendText(d, ascii){
+  if(d==null) return "";
+  if(d>0) return (ascii?"+":"▲")+d;
+  if(d<0) return (ascii?"-":"▼")+(-d);
+  return "0";
 }
 
 function refreshNotice(){
-  if(!CURRENT || !CURRENT.rows.length){ document.getElementById("msgPreview").textContent="(표시할 데이터가 없습니다)"; return; }
-  const data = CURRENT.rows;
-  const useFence = document.getElementById("msgFence").checked;
-  const ascii = document.getElementById("msgAscii").checked;
-  const unit = noticeUnit();
+  const box = document.getElementById("msgPreview");
+  if(!CURRENT || !CURRENT.rows.length){ box.innerHTML="<pre>(표시할 데이터가 없습니다)</pre>"; NOTICE={html:"",text:""}; return; }
+  const {buckets, rows} = buildNotice();
+  const colHeads = buckets.map((b,i)=>bucketHeader(b,i));
+  const head = document.getElementById("msgHead").value;
+  const foot = document.getElementById("msgFoot").value;
+  const textMode = document.getElementById("msgText").checked;
 
-  // compare latest bucket vs previous bucket, using the SELECTED period
-  const buckets = [...new Set(data.map(r=>bucketKey(r)))].sort();
-  const bCur = buckets[buckets.length-1];
-  const bPrev = buckets[buckets.length-2];
-  const hasPrev = bPrev !== undefined;
+  // ----- rich HTML table (for preview + rich copy) -----
+  let thead = `<tr><th class="cls">반</th>`+colHeads.map(h=>`<th>${esc(h)}</th>`).join("")+`<th class="cum">누계 점수</th><th>${cmpLabel()}</th></tr>`;
+  let tbody = rows.map(r=>{
+    const tc = trendCell(r.delta);
+    return `<tr><td class="cls">${esc(r.label)}</td>`
+      + r.vals.map(v=>`<td>${v||""}</td>`).join("")
+      + `<td class="cum">${r.cum}</td>`
+      + `<td class="${tc.cls}">${tc.t}</td></tr>`;
+  }).join("");
+  const tableHTML = `<table class="notice"><thead>${thead}</thead><tbody>${tbody}</tbody></table>`;
+  box.innerHTML = textMode ? "" : tableHTML;
 
-  const curBy={}, prevBy={};
-  for(const r of data){
-    const c = r.grade+"-"+r.cls; const b = bucketKey(r);
-    if(b===bCur) (curBy[c]=curBy[c]||[]).push(r);
-    else if(b===bPrev) (prevBy[c]=prevBy[c]||[]).push(r);
-  }
-  const classes = [...new Set([...Object.keys(curBy), ...Object.keys(prevBy)])];
-  const scored = classes.map(c=>{
-    const [g,cl]=c.split("-").map(Number);
-    const cur=scoreOf(curBy[c]||[]), prev=scoreOf(prevBy[c]||[]);
-    return {g, cl, cur, prev, d:cur-prev};
-  });
+  // ----- plain text: TSV (pastes as table into 엑셀/한글) -----
+  const tsvHead = ["반",...colHeads,"누계 점수",cmpLabel()].join("\t");
+  const tsvRows = rows.map(r=>[r.label,...r.vals.map(v=>v||0),r.cum,trendText(r.delta,true)].join("\t"));
+  const tsv = [tsvHead,...tsvRows].join("\n");
 
-  // group & rank per grade; comparison column only shown when a previous bucket exists
-  const grades = [...new Set(scored.map(s=>s.g))].sort((a,b)=>a-b);
-  const trend = d => trendMark(d, hasPrev, ascii);
-  const headers = hasPrev ? ["순위","반",metricLabel(),unit.cmp] : ["순위","반",metricLabel()];
-  const aligns  = hasPrev ? ["c","l","r","r"] : ["c","l","r"];
-  const blocks = [];
-  for(const g of grades){
-    const list = scored.filter(s=>s.g===g).sort((a,b)=> b.cur-a.cur || a.cl-b.cl);
-    const rows = list.map((s,i)=> hasPrev ? [String(i+1), `${s.cl}반`, String(s.cur), trend(s.d)]
-                                          : [String(i+1), `${s.cl}반`, String(s.cur)]);
-    const gCur = scoreOf(data.filter(r=>bucketKey(r)===bCur && r.grade===g));
-    const gPrev = scoreOf(data.filter(r=>bucketKey(r)===bPrev && r.grade===g));
-    rows.push(hasPrev ? ["", "소계", String(gCur), trend(gCur-gPrev)] : ["", "소계", String(gCur)]);
-    blocks.push(`■ ${g}학년\n${asciiTable(headers, rows, aligns)}`);
-  }
-  // overall total line
-  const curAll = scoreOf(data.filter(r=>bucketKey(r)===bCur));
-  const prevAll = scoreOf(data.filter(r=>bucketKey(r)===bPrev));
-  blocks.push(hasPrev ? `총 합계: ${curAll}  (${unit.cmp} ${trend(curAll-prevAll)})` : `총 합계: ${curAll}`);
-  let body = blocks.join("\n\n");
-  if(useFence) body = "```\n"+body+"\n```";
+  // ----- ASCII table (for messengers) -----
+  const aHead = ["반",...colHeads,"누계",cmpLabel()];
+  const aRows = rows.map(r=>[r.label,...r.vals.map(v=>String(v||0)),String(r.cum),trendText(r.delta,true)]);
+  const aAlign = ["l",...colHeads.map(()=> "r"),"r","r"];
+  const asciiBody = "```\n"+asciiTable(aHead, aRows, aAlign)+"\n```";
 
-  const gradeSel=document.getElementById("gradeSel");
-  const gtxt = gradeSel.value ? `${gradeSel.value}학년 ` : "전체 ";
-  const arr = ascii ? "(+증가·-감소)" : "(▲증가·▼감소)";
-  let title = `[${gtxt}반별 독서현황 · ${periodName()} · ${metricLabel()}]\n${unit.cur}: ${unit.disp(bCur)}`;
-  if(hasPrev) title += `\n${unit.prev}: ${unit.disp(bPrev)} 대비 ${arr}`;
+  if(textMode) box.innerHTML = `<pre>${esc([head,"",asciiBody,"",foot].join("\n"))}</pre>`;
 
-  const head = document.getElementById("msgHead").value.trim();
-  const foot = document.getElementById("msgFoot").value.trim();
-  const plain = [head, "", title, "", body, "", foot].join("\n");
-
-  // colored preview; copy still yields plain text (arrows kept, color dropped)
-  const pre = document.getElementById("msgPreview");
-  pre.innerHTML = esc(plain)
-    .replace(/▲(\d+)/g,'<span style="color:#fb7185;font-weight:700">▲$1</span>')
-    .replace(/▼(\d+)/g,'<span style="color:#60a5fa;font-weight:700">▼$1</span>')
-    .replace(/(?<![\w])\+(\d+)/g,'<span style="color:#fb7185;font-weight:700">+$1</span>')
-    .replace(/(?<![\w\d])-(\d+)/g,'<span style="color:#60a5fa;font-weight:700">-$1</span>');
+  // stash for copy
+  NOTICE = {
+    html: `<div>${esc(head).replace(/\n/g,"<br>")}</div><br>${tableHTML}<br><div>${esc(foot).replace(/\n/g,"<br>")}</div>`,
+    text: textMode ? [head,"",asciiBody,"",foot].join("\n") : [head,"",tsv,"",foot].join("\n")
+  };
 }
-function openNotice(){ refreshNotice(); msgModal.classList.add("open"); }
+
+let lastAutoHead = "독서 마라톤 포인트 현황 보내드립니다~";
+function openNotice(){
+  // auto-fill header with current week count, unless the user edited it
+  if(CURRENT && CURRENT.rows.length && period==="week"){
+    const wn = new Set(CURRENT.rows.map(r=>r.week)).size;
+    const ta = document.getElementById("msgHead");
+    if(ta.value.trim()===lastAutoHead.trim() || ta.value.trim()==="독서 마라톤 포인트 현황 보내드립니다~"){
+      lastAutoHead = `독서 마라톤 ${wn}주차 포인트 현황 보내드립니다~`;
+      ta.value = lastAutoHead;
+    }
+  }
+  refreshNotice();
+  msgModal.classList.add("open");
+}
 
 // Read bytes then decode: try UTF-8, fall back to EUC-KR/CP949 if it looks garbled.
 function decodeSmart(buf){
